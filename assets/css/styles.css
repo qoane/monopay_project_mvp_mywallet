@@ -29,6 +29,12 @@ body {
     margin: 0;
     padding-top: 70px; /* reserve space for fixed nav */
     min-height: 100vh;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+body::-webkit-scrollbar {
+    display: none;
 }
 
 /* Navigation bar */
@@ -148,11 +154,26 @@ body {
     color: #b3dacf;
 }
 
+.feature-card.text-start {
+    text-align: left;
+}
+
+.feature-card.full-height {
+    height: 100%;
+}
+
 /* Provider logos */
 .provider-logo {
     width: 80px;
     height: auto;
     margin-bottom: 15px;
+}
+
+.provider-note {
+    font-size: 0.9rem;
+    color: #b3dacf;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 /* How it works steps */
@@ -192,6 +213,16 @@ body {
 .step p {
     font-size: 0.9rem;
     color: #b3dacf;
+}
+
+.why-list {
+    line-height: 1.6;
+    font-size: 0.95rem;
+    color: #b3dacf;
+}
+
+.accent-paragraph {
+    color: #cde5d1;
 }
 
 /* Forms */
@@ -287,6 +318,56 @@ table.table-dark tbody td {
     background-color: var(--highlight);
 }
 
+.feedback-message {
+    display: none;
+    font-weight: 600;
+}
+
+.feedback-message.success {
+    color: #76d9b0;
+}
+
+.feedback-message.error {
+    color: #ff6666;
+}
+
+.hidden-section {
+    display: none;
+}
+
+.response-container {
+    display: none;
+}
+
+.response-container.visible,
+.feedback-message.visible {
+    display: block;
+}
+
+.editor-card {
+    height: 500px;
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-surface {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.editor-response {
+    width: 100%;
+    height: 100%;
+    background-color: #0d1333;
+    color: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
 /* Footer */
 .footer {
     background-color: var(--card-bg);
@@ -313,5 +394,13 @@ table.table-dark tbody td {
 }
 
 .footer .social-icons i:hover {
+    color: var(--highlight);
+}
+
+.footer-note {
+    font-size: 0.8rem;
+}
+
+.highlight-heading {
     color: var(--highlight);
 }
