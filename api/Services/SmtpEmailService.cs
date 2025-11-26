@@ -23,6 +23,17 @@ namespace MonoPayAggregator.Services
 
         public async Task SendVerificationEmailAsync(string email, string token)
         {
+            // If SMTP settings are missing we short‑circuit to avoid runtime
+            // failures during local development. Registration should not crash
+            // simply because email is not configured; we log and return
+            // gracefully instead.
+            if (string.IsNullOrWhiteSpace(_options.SmtpServer) ||
+                string.IsNullOrWhiteSpace(_options.SenderEmail))
+            {
+                Console.WriteLine("[Email] SMTP settings not configured; skipping send for token {0}", token);
+                return;
+            }
+
             // Compose verification URL (in a real deployment this should be
             // your publicly accessible endpoint). For the MVP we assume
             // https://monopay.local/verify?token={token}
@@ -50,14 +61,24 @@ namespace MonoPayAggregator.Services
             };
             message.To.Add(email);
 
-            using var client = new SmtpClient(_options.SmtpServer, _options.Port)
+            try
             {
-                EnableSsl = true,
-                Credentials = new NetworkCredential(
-                    string.IsNullOrEmpty(_options.Username) ? _options.SenderEmail : _options.Username,
-                    _options.Password)
-            };
-            await client.SendMailAsync(message);
+                using var client = new SmtpClient(_options.SmtpServer, _options.Port)
+                {
+                    EnableSsl = true,
+                    Credentials = new NetworkCredential(
+                        string.IsNullOrEmpty(_options.Username) ? _options.SenderEmail : _options.Username,
+                        _options.Password)
+                };
+                await client.SendMailAsync(message);
+            }
+            catch (Exception ex)
+            {
+                // Avoid bubbling SMTP errors to callers that just need
+                // registration to succeed. In a real system you'd inject a
+                // logger and record the failure.
+                Console.WriteLine($"[Email] Failed to send verification email: {ex.Message}");
+            }
         }
     }
 }
