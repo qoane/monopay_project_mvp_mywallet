@@ -10,6 +10,30 @@ using Microsoft.Extensions.FileProviders;
 using System.IO;
 using Microsoft.AspNetCore.Diagnostics;
 using System.Text.Json;
+using System.Linq;
+
+static string NormalizePathBase(string? pathBase)
+{
+    if (string.IsNullOrWhiteSpace(pathBase))
+    {
+        return string.Empty;
+    }
+
+    pathBase = pathBase.Trim();
+    if (!pathBase.StartsWith("/"))
+    {
+        pathBase = $"/{pathBase}";
+    }
+
+    return pathBase.TrimEnd('/');
+}
+
+static string CombinePathSegments(params string[] segments)
+{
+    return string.Join('/', segments
+        .Where(s => !string.IsNullOrWhiteSpace(s))
+        .Select(s => s.Trim('/')));
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +41,8 @@ var builder = WebApplication.CreateBuilder(args);
 // endpoints and API keys, as well as email settings. In production you
 // would use environment variables or a secure secret store.
 builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+
+var pathBase = NormalizePathBase(builder.Configuration["PathBase"]);
 
 // Configure database context. Use SQL Server when a connection string is
 // available, otherwise fall back to an in-memory database to keep the API
@@ -163,6 +189,11 @@ builder.Services.AddSingleton<MonoPayAggregator.Services.PaymentAggregator>(sp =
 
 var app = builder.Build();
 
+if (!string.IsNullOrEmpty(pathBase))
+{
+    app.UsePathBase(pathBase);
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -199,35 +230,49 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-// Serve static files from the root and also under /api so reverse-proxy
-// configurations that mount the app at /api can still reach the HTML docs.
-app.UseDefaultFiles();
-app.UseStaticFiles();
-
+// Serve static files from the root. When no path base is configured, also expose
+// the assets under /api for compatibility with earlier reverse-proxy setups.
 var staticFileProvider = new PhysicalFileProvider(Path.Combine(app.Environment.ContentRootPath, "wwwroot"));
+
 app.UseDefaultFiles(new DefaultFilesOptions
 {
-    FileProvider = staticFileProvider,
-    RequestPath = "/api"
+    FileProvider = staticFileProvider
 });
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = staticFileProvider,
-    RequestPath = "/api"
+    FileProvider = staticFileProvider
 });
 
-// Enable Swagger middleware. Route the generated OpenAPI document under /api/swagger
+if (string.IsNullOrEmpty(pathBase))
+{
+    app.UseDefaultFiles(new DefaultFilesOptions
+    {
+        FileProvider = staticFileProvider,
+        RequestPath = "/api"
+    });
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = staticFileProvider,
+        RequestPath = "/api"
+    });
+}
+
+var swaggerRoutePrefix = CombinePathSegments("swagger");
+var swaggerJsonRoute = CombinePathSegments(swaggerRoutePrefix, "{documentName}", "swagger.json");
+var swaggerEndpointPath = CombinePathSegments(pathBase, swaggerRoutePrefix, "v1", "swagger.json");
+var swaggerCustomCssPath = CombinePathSegments(pathBase, "swagger-ui", "custom.css");
+
 app.UseSwagger(c =>
 {
-    c.RouteTemplate = "api/swagger/{documentName}/swagger.json";
+    c.RouteTemplate = swaggerJsonRoute;
 });
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint("/api/swagger/v1/swagger.json", "MonoPay API v1");
-    options.RoutePrefix = "api/swagger";
+    options.SwaggerEndpoint($"/{swaggerEndpointPath}", "MonoPay API v1");
+    options.RoutePrefix = swaggerRoutePrefix;
     options.DocumentTitle = "MonoPay API";
     // Inject our custom CSS to brand the Swagger UI
-    options.InjectStylesheet("/swagger-ui/custom.css");
+    options.InjectStylesheet($"/{swaggerCustomCssPath}");
 });
 
 app.UseRouting();
