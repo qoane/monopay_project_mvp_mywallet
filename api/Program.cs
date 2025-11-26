@@ -14,11 +14,24 @@ var builder = WebApplication.CreateBuilder(args);
 // would use environment variables or a secure secret store.
 builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
-// Configure database context. Use SQL Server by default. The connection string
-// is pulled from the ConnectionStrings:DefaultConnection section of
-// appsettings.json. EF Core must be added as a package dependency.
+// Configure database context. Use SQL Server when a connection string is
+// available, otherwise fall back to an in-memory database to keep the API
+// functional in local or test environments where SQL Server is unavailable.
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var useInMemoryDb = builder.Configuration.GetValue<bool>("UseInMemoryDatabase") ||
+                   string.IsNullOrWhiteSpace(connectionString);
+
 builder.Services.AddDbContext<MonoPayAggregator.Data.MonoPayDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (useInMemoryDb)
+    {
+        options.UseInMemoryDatabase("MonoPayDb");
+    }
+    else
+    {
+        options.UseSqlServer(connectionString);
+    }
+});
 
 // Register HttpClient factory for calling external APIs (e.g. MyWallet)
 builder.Services.AddHttpClient();
