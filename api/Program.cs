@@ -8,6 +8,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.Extensions.FileProviders;
 using System.IO;
+using Microsoft.AspNetCore.Diagnostics;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -166,6 +168,36 @@ if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
 }
+
+// Capture unhandled exceptions and return a structured JSON payload so
+// operators can correlate reported 500 errors with server logs. This helps
+// when deployments behave differently across environments.
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+
+        var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+        var errorId = Guid.NewGuid().ToString("N");
+
+        if (exceptionHandlerFeature?.Error != null)
+        {
+            var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("GlobalExceptionHandler");
+            logger.LogError(exceptionHandlerFeature.Error, "Unhandled exception {ErrorId} on path {Path}", errorId, exceptionHandlerFeature.Path);
+        }
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            message = "An unexpected error occurred. Please provide the errorId to support for investigation.",
+            errorId
+        });
+
+        await context.Response.WriteAsync(payload);
+    });
+});
 
 // Serve static files from the root and also under /api so reverse-proxy
 // configurations that mount the app at /api can still reach the HTML docs.
