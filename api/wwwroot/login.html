@@ -76,20 +76,37 @@
       const password = document.getElementById('loginPassword').value;
       const msgElem = document.getElementById('loginMessage');
       msgElem.style.display = 'none';
+
+      const parseJsonSafely = async (response) => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const fallbackText = (await response.text()).trim();
+          return fallbackText ? { message: fallbackText } : null;
+        }
+        try {
+          return await response.json();
+        } catch {
+          return null;
+        }
+      };
+
       try {
         const response = await fetch('/api/v1/users/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         });
-        const data = await response.json();
+
+        const data = await parseJsonSafely(response);
         if (!response.ok) {
-          throw new Error(data.message || 'Login failed');
+          const fallback = data?.message || `Login failed (HTTP ${response.status})`;
+          throw new Error(fallback);
         }
+
         // Save the token and email in localStorage for subsequent calls. We
         // preserve the legacy key 'monopay_logged_in' for compatibility with
         // existing dashboard logic.
-        localStorage.setItem('monopay_token', data.token);
+        localStorage.setItem('monopay_token', data?.token || '');
         localStorage.setItem('monopay_logged_in', email);
         msgElem.style.display = 'block';
         msgElem.style.color = '#76d9b0';
@@ -100,7 +117,7 @@
       } catch (err) {
         msgElem.style.display = 'block';
         msgElem.style.color = '#ff6666';
-        msgElem.textContent = err.message;
+        msgElem.textContent = err.message || 'Unable to login. Please try again.';
       }
     });
   </script>
