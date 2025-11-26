@@ -6,6 +6,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.Extensions.FileProviders;
+using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -165,8 +167,22 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
-// Serve static files (required if you inject custom Swagger UI assets)
+// Serve static files from the root and also under /api so reverse-proxy
+// configurations that mount the app at /api can still reach the HTML docs.
+app.UseDefaultFiles();
 app.UseStaticFiles();
+
+var staticFileProvider = new PhysicalFileProvider(Path.Combine(app.Environment.ContentRootPath, "wwwroot"));
+app.UseDefaultFiles(new DefaultFilesOptions
+{
+    FileProvider = staticFileProvider,
+    RequestPath = "/api"
+});
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = staticFileProvider,
+    RequestPath = "/api"
+});
 
 // Enable Swagger middleware. Route the generated OpenAPI document under /api/swagger
 app.UseSwagger(c =>
@@ -175,12 +191,8 @@ app.UseSwagger(c =>
 });
 app.UseSwaggerUI(options =>
 {
-    // Serve the Swagger JSON at /api/swagger/v1/swagger.json. The UI itself
-    // will be hosted at /api. Adjust RoutePrefix to match your preferred
-    // path. When RoutePrefix is an empty string, the UI is served at the
-    // application root; setting it to "api" hosts it at /api.
     options.SwaggerEndpoint("/api/swagger/v1/swagger.json", "MonoPay API v1");
-    options.RoutePrefix = "api";
+    options.RoutePrefix = "api/swagger";
     options.DocumentTitle = "MonoPay API";
     // Inject our custom CSS to brand the Swagger UI
     options.InjectStylesheet("/swagger-ui/custom.css");
