@@ -9,6 +9,7 @@ namespace MonoPayAggregator.Controllers
 {
     [ApiController]
     [Route("v1/users")]
+    [Route("api/v1/users")]
     public class UserController : ControllerBase
     {
         private readonly MonoPayAggregator.Services.IEmailService _emailService;
