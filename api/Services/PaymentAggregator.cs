@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using MonoPayAggregator.Models;
 
@@ -74,6 +75,20 @@ namespace MonoPayAggregator.Services
                 new { code = "eft", name = "Bank EFT", country = "Lesotho" },
                 new { code = "card", name = "Card", country = "International" }
             };
+        }
+
+        /// <summary>
+        /// Return a snapshot of all payments created through the aggregator.
+        /// A copy is returned to avoid consumers enumerating over the internal
+        /// list while it is being modified, which could lead to race conditions
+        /// or collection‑modified exceptions.
+        /// </summary>
+        public IEnumerable<PaymentResponse> GetAllPayments()
+        {
+            lock (_allPayments)
+            {
+                return _allPayments.ToArray();
+            }
         }
 
         /// <summary>

@@ -62,13 +62,9 @@ namespace MonoPayAggregator.Controllers
         [HttpGet("payments")]
         public ActionResult<IEnumerable<PaymentResponse>> GetAllPayments()
         {
-            // Access the internal list via reflection; the aggregator exposes
-            // no public API for this in the current implementation. In a real
-            // implementation you would query a database instead.
-            var field = typeof(MonoPayAggregator.Services.PaymentAggregator)
-                .GetField("_allPayments", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var list = field?.GetValue(_aggregator) as IEnumerable<PaymentResponse>;
-            return Ok(list ?? Array.Empty<PaymentResponse>());
+            // Use the aggregator's API to obtain a snapshot of all payments.
+            // In a real implementation this data would come from persistent storage.
+            return Ok(_aggregator.GetAllPayments());
         }
 
         /// <summary>
