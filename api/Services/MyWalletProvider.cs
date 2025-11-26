@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Concurrent;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using MonoPayAggregator.Models;
 
@@ -16,7 +19,14 @@ namespace MonoPayAggregator.Services
     {
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly ConcurrentDictionary<string, PaymentResponse> _cache = new();
+        private readonly ConcurrentDictionary<string, MyWalletCacheEntry> _cache = new();
+
+        private class MyWalletCacheEntry
+        {
+            public PaymentResponse Payment { get; set; } = new();
+            public string? SessionToken { get; set; }
+            public string Reference { get; set; } = string.Empty;
+        }
 
         public MyWalletProvider(IConfiguration config, IHttpClientFactory httpClientFactory)
         {
@@ -35,6 +45,7 @@ namespace MonoPayAggregator.Services
         {
             // Generate a local reference ID for our own tracking
             var localId = "mywallet_" + Guid.NewGuid().ToString("N").Substring(0, 10);
+            var reference = request.Reference ?? localId;
             var payment = new PaymentResponse
             {
                 Id = localId,
@@ -44,7 +55,8 @@ namespace MonoPayAggregator.Services
                 PaymentMethod = "mywallet",
                 MerchantId = request.MerchantId,
                 CustomerPhone = request.Customer?.Phone,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                ProviderReference = reference
             };
             // Attempt to call the real API. Any exception will cause us to
             // fallback to the in‑memory simulation below.
@@ -53,68 +65,58 @@ namespace MonoPayAggregator.Services
                 var baseUrl = _config["PaymentProviders:MyWallet:BaseUrl"] ?? string.Empty;
                 var username = _config["PaymentProviders:MyWallet:Username"] ?? string.Empty;
                 var password = _config["PaymentProviders:MyWallet:Password"] ?? string.Empty;
-                var otp = _config["PaymentProviders:MyWallet:Otp"] ?? "9999";
+                var otp = _config["PaymentProviders:MyWallet:Otp"] ?? "99999";
                 if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
                 {
                     throw new InvalidOperationException("MyWallet configuration missing.");
                 }
                 var client = _httpClientFactory.CreateClient();
                 client.Timeout = TimeSpan.FromSeconds(30);
-
-                // 1. Login to obtain a session token
-                var loginPayload = new { email = username, password = password };
-                var loginResponse = await client.PostAsync(
-                    $"{baseUrl.TrimEnd('/')}/login",
-                    new StringContent(System.Text.Json.JsonSerializer.Serialize(loginPayload), System.Text.Encoding.UTF8, "application/json"));
-                loginResponse.EnsureSuccessStatusCode();
-                using var loginDoc = System.Text.Json.JsonDocument.Parse(await loginResponse.Content.ReadAsStringAsync());
-                var token = loginDoc.RootElement.GetProperty("token").GetString() ?? throw new Exception("No token returned from MyWallet login.");
+                // 1. Login to obtain a bearer token
+                var sessionToken = await LoginAsync(client, baseUrl, username, password);
 
                 // 2. Check recipient and prepare payment. MyWallet expects a reference
                 // string to be unique per transaction. We fall back to our local ID if no reference provided.
-                var reference = request.Reference ?? localId;
-                var checkPayload = new
+                var paymentToken = await CheckUserAsync(client, baseUrl, sessionToken, new
                 {
                     recipientCell = request.Customer?.Phone,
                     amount = request.Amount,
-                    reference = reference,
+                    reference,
                     mywalletUser = false,
                     mywalletAccount = (string?)null,
                     commission = 0
-                };
-                var checkResponse = await client.PostAsync(
-                    $"{baseUrl.TrimEnd('/')}/checkUser",
-                    new StringContent(System.Text.Json.JsonSerializer.Serialize(checkPayload), System.Text.Encoding.UTF8, "application/json"));
-                checkResponse.EnsureSuccessStatusCode();
+                });
 
                 // 3. Pay merchant using token and OTP
-                var payPayload = new { token = token, otp = otp };
-                var payResponse = await client.PostAsync(
-                    $"{baseUrl.TrimEnd('/')}/payMerchant",
-                    new StringContent(System.Text.Json.JsonSerializer.Serialize(payPayload), System.Text.Encoding.UTF8, "application/json"));
-                payResponse.EnsureSuccessStatusCode();
-                using var payDoc = System.Text.Json.JsonDocument.Parse(await payResponse.Content.ReadAsStringAsync());
-                var status = payDoc.RootElement.GetProperty("status").GetString();
-                // Optionally extract provider reference from response
-                var providerRef = payDoc.RootElement.TryGetProperty("reference", out var refEl) ? refEl.GetString() : reference;
-                payment.Status = status ?? "pending";
-                payment.CompletedAt = status == "success" ? DateTime.UtcNow : null;
-                payment.ProviderReference = providerRef ?? reference;
+                var payResult = await PayMerchantAsync(client, baseUrl, sessionToken, paymentToken, otp);
+                payment.Status = payResult.status;
+                payment.CompletedAt = payResult.status == "success" ? DateTime.UtcNow : null;
+                payment.ProviderReference = payResult.reference ?? reference;
+
                 // Cache the response for retrieval
-                _cache[localId] = payment;
+                _cache[localId] = new MyWalletCacheEntry
+                {
+                    Payment = payment,
+                    SessionToken = sessionToken,
+                    Reference = payment.ProviderReference
+                };
                 return payment;
             }
             catch
             {
                 // Fallback simulation: mark as successful after delay
-                _cache[localId] = payment;
+                _cache[localId] = new MyWalletCacheEntry
+                {
+                    Payment = payment,
+                    Reference = reference
+                };
                 _ = Task.Run(async () =>
                 {
                     await Task.Delay(TimeSpan.FromSeconds(10));
-                    if (_cache.TryGetValue(localId, out var p) && p.Status == "pending")
+                    if (_cache.TryGetValue(localId, out var entry) && entry.Payment.Status == "pending")
                     {
-                        p.Status = "success";
-                        p.CompletedAt = DateTime.UtcNow;
+                        entry.Payment.Status = "success";
+                        entry.Payment.CompletedAt = DateTime.UtcNow;
                     }
                 });
                 return payment;
@@ -128,10 +130,11 @@ namespace MonoPayAggregator.Services
         /// </summary>
         public async Task<PaymentResponse?> GetPaymentAsync(string id)
         {
-            if (!_cache.TryGetValue(id, out var payment))
+            if (!_cache.TryGetValue(id, out var entry))
             {
                 return null;
             }
+            var payment = entry.Payment;
             // If we have a provider reference and the status is pending, try
             // to refresh status from the remote API
             if (!string.IsNullOrWhiteSpace(payment.ProviderReference) && payment.Status == "pending")
@@ -139,14 +142,19 @@ namespace MonoPayAggregator.Services
                 try
                 {
                     var baseUrl = _config["PaymentProviders:MyWallet:BaseUrl"] ?? string.Empty;
+                    var username = _config["PaymentProviders:MyWallet:Username"] ?? string.Empty;
+                    var password = _config["PaymentProviders:MyWallet:Password"] ?? string.Empty;
                     var client = _httpClientFactory.CreateClient();
+                    var sessionToken = entry.SessionToken ?? await LoginAsync(client, baseUrl, username, password);
                     var statusPayload = new { reference = payment.ProviderReference };
-                    var statusResponse = await client.PostAsync(
-                        $"{baseUrl.TrimEnd('/')}/checkStatus",
-                        new StringContent(System.Text.Json.JsonSerializer.Serialize(statusPayload), System.Text.Encoding.UTF8, "application/json"));
+                    var statusResponse = await PostWithBearerAsync(client, baseUrl, sessionToken, "checkStatus", statusPayload);
                     statusResponse.EnsureSuccessStatusCode();
-                    using var doc = System.Text.Json.JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync());
-                    var newStatus = doc.RootElement.GetProperty("status").GetString();
+                    using var doc = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync());
+                    var newStatus = TryGetString(doc.RootElement, "status") ?? TryGetString(doc.RootElement, "state");
+                    if (string.IsNullOrEmpty(newStatus) && doc.RootElement.TryGetProperty("data", out var dataEl))
+                    {
+                        newStatus = TryGetString(dataEl, "status");
+                    }
                     if (!string.IsNullOrEmpty(newStatus))
                     {
                         payment.Status = newStatus;
@@ -169,6 +177,78 @@ namespace MonoPayAggregator.Services
             // The MyWallet API does not expose a balance endpoint in the
             // provided documentation. Return null to indicate unsupported.
             return Task.FromResult<decimal?>(null);
+        }
+
+        private async Task<string> LoginAsync(HttpClient client, string baseUrl, string username, string password)
+        {
+            var loginPayload = new { email = username, password = password };
+            var response = await client.PostAsync(
+                $"{baseUrl.TrimEnd('/')}/login",
+                new StringContent(JsonSerializer.Serialize(loginPayload), Encoding.UTF8, "application/json"));
+            response.EnsureSuccessStatusCode();
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var token = TryGetString(doc.RootElement, "token");
+            if (string.IsNullOrEmpty(token) && doc.RootElement.TryGetProperty("data", out var dataEl))
+            {
+                token = TryGetString(dataEl, "token");
+            }
+            return token ?? throw new Exception("No token returned from MyWallet login.");
+        }
+
+        private async Task<string> CheckUserAsync(HttpClient client, string baseUrl, string bearer, object payload)
+        {
+            var response = await PostWithBearerAsync(client, baseUrl, bearer, "checkUser", payload);
+            response.EnsureSuccessStatusCode();
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            if (doc.RootElement.TryGetProperty("data", out var dataEl))
+            {
+                var token = TryGetString(dataEl, "token");
+                if (!string.IsNullOrEmpty(token))
+                {
+                    return token;
+                }
+            }
+            throw new Exception("MyWallet checkUser did not return a token.");
+        }
+
+        private async Task<(string status, string? reference)> PayMerchantAsync(HttpClient client, string baseUrl, string bearer, string paymentToken, string otp)
+        {
+            var response = await PostWithBearerAsync(client, baseUrl, bearer, "payMerchant", new { token = paymentToken, otp });
+            response.EnsureSuccessStatusCode();
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var statusCode = TryGetInt(doc.RootElement, "status_code");
+            var status = TryGetString(doc.RootElement, "status") ?? (statusCode == 200 ? "success" : "failed");
+            if (doc.RootElement.TryGetProperty("data", out var dataEl))
+            {
+                status = TryGetString(dataEl, "status") ?? status;
+            }
+            var reference = TryGetString(doc.RootElement, "reference");
+            if (string.IsNullOrEmpty(reference) && doc.RootElement.TryGetProperty("data", out var dataElement))
+            {
+                reference = TryGetString(dataElement, "reference");
+            }
+            return (status ?? "pending", reference);
+        }
+
+        private async Task<HttpResponseMessage> PostWithBearerAsync(HttpClient client, string baseUrl, string bearer, string path, object payload)
+        {
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+            var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            return await client.PostAsync($"{baseUrl.TrimEnd('/')}/{path}", content);
+        }
+
+        private static string? TryGetString(JsonElement element, string propertyName)
+        {
+            return element.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.String
+                ? prop.GetString()
+                : null;
+        }
+
+        private static int? TryGetInt(JsonElement element, string propertyName)
+        {
+            return element.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.Number
+                ? prop.GetInt32()
+                : null;
         }
     }
 }
