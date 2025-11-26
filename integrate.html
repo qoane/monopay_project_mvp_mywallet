@@ -47,7 +47,7 @@
   <!-- Quick Start -->
   <section class="section">
     <div class="container">
-      <h3 class="text-center mb-4" style="color:var(--highlight);">1. Obtain your API key</h3>
+      <h3 class="text-center mb-4 highlight-heading">1. Obtain your API key</h3>
       <p>Once you've registered and your account is verified, log into your dashboard and generate a set of public and secret keys. Use the secret key in the Authorization header of every request.</p>
       <div class="code-block">
 <pre><code class="language-bash"># Retrieve an access token with your credentials
@@ -58,7 +58,7 @@ curl -X POST https://api.monopay.ls/v1/auth/token
         <button class="copy-btn">Copy</button>
       </div>
 
-      <h3 class="text-center mb-4" style="color:var(--highlight);">2. Make a payment</h3>
+      <h3 class="text-center mb-4 highlight-heading">2. Make a payment</h3>
       <p>Initiate a mobile money payment using our REST API. Change the <code>payment_method</code> to <code>eft</code> or <code>card</code> for other rails.</p>
       <div class="code-block">
 <pre><code class="language-json">POST /v1/payments HTTP/1.1
@@ -82,7 +82,7 @@ Content-Type: application/json
         <button class="copy-btn">Copy</button>
       </div>
 
-      <h3 class="text-center mb-4" style="color:var(--highlight);">3. Receive payment notifications</h3>
+      <h3 class="text-center mb-4 highlight-heading">3. Receive payment notifications</h3>
       <p>MonoPay notifies your app of payment events via HTTPS webhooks. Validate the signature header and update your records accordingly.</p>
       <div class="code-block">
 <pre><code class="language-csharp">// Verify a webhook signature in C# (.NET)
