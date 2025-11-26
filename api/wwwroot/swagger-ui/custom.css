@@ -1,0 +1,37 @@
+/*
+ * Custom styling for Swagger UI to align with MonoPay’s dark theme.
+ */
+
+body.swagger-ui {
+  background-color: #0d1333;
+  color: #ffffff;
+}
+
+.swagger-ui .topbar {
+  background-color: #093F69;
+  padding: 10px;
+}
+
+.swagger-ui .topbar .link img {
+  height: 40px;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+
+.swagger-ui .topbar .link span {
+  display: none; /* hide the default Swagger UI text */
+}
+
+.swagger-ui .btn,
+.swagger-ui .opblock-summary,
+.swagger-ui .tabheader a {
+  background-color: #007d73;
+  border-color: #007d73;
+}
+
+.swagger-ui .btn:hover,
+.swagger-ui .opblock-summary:hover,
+.swagger-ui .tabheader a:hover {
+  background-color: #005f55;
+  border-color: #005f55;
+}

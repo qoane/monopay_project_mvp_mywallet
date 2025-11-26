@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard – MonoPay</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Font Awesome for icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+  <!-- AOS Animations -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" />
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar navbar-expand-lg fixed-top">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="index.html">
+        <img src="assets/images/monopay_logo.png" alt="MonoPay Logo" /> MonoPay
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="integrate.html">Integrate</a></li>
+          <li class="nav-item"><a class="nav-link" href="docs.html">Docs</a></li>
+          <li class="nav-item"><a class="nav-link" href="sandbox.html">Sandbox</a></li>
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="dashboard.html">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="register.html">Register</a></li>
+          <li class="nav-item"><a class="nav-link" href="login.html" id="navLogout">Login</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Dashboard Content -->
+  <section class="section">
+    <div class="container">
+      <h2 class="section-title" id="dashboardGreeting" data-aos="fade-down"></h2>
+
+      <!-- API Keys Section -->
+      <div class="row" data-aos="fade-up">
+        <div class="col-md-6">
+          <div class="feature-card" style="text-align:left;">
+            <h4>API Keys</h4>
+            <p>Your API keys are used to authenticate your application. Keep them secret!</p>
+            <div class="mb-2">
+              <label class="form-label">Client ID:</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="clientId" readonly />
+                <button class="copy-btn" type="button" onclick="copyToClipboard('clientId')"><i class="fas fa-copy"></i></button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Secret Key:</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="secretKey" readonly />
+                <button class="copy-btn" type="button" onclick="copyToClipboard('secretKey')"><i class="fas fa-copy"></i></button>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="regenerateKeys()">Regenerate Keys</button>
+          </div>
+        </div>
+
+        <!-- Account Details -->
+        <div class="col-md-6" data-aos="fade-up" data-aos-delay="100">
+          <div class="feature-card" style="text-align:left;">
+            <h4>Account Details</h4>
+            <form id="accountForm">
+              <div class="mb-2">
+                <label class="form-label">First Name</label>
+                <input type="text" class="form-control" id="accountFirstName" required />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Last Name</label>
+                <input type="text" class="form-control" id="accountLastName" required />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" id="accountEmail" readonly />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Phone</label>
+                <input type="tel" class="form-control" id="accountPhone" required />
+              </div>
+              <button type="submit" class="btn btn-primary">Update Details</button>
+            </form>
+            <div id="accountMessage" class="mt-2" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Test Payment Section -->
+      <div class="row mt-4" data-aos="fade-up" data-aos-delay="200">
+        <div class="col-12">
+          <div class="feature-card" style="text-align:left;">
+            <h4>Test a Payment</h4>
+            <p>Use the form below to simulate a payment in the sandbox. This will not affect real accounts.</p>
+            <form id="paymentForm" class="row gy-2 gx-3 align-items-end">
+              <div class="col-sm-3">
+                <label class="form-label">Amount</label>
+                <input type="number" class="form-control" id="paymentAmount" min="1" step="0.01" placeholder="0.00" required />
+              </div>
+              <div class="col-sm-3">
+                <label class="form-label">Currency</label>
+                <select class="form-select" id="paymentCurrency" required>
+                  <option value="LSL">LSL</option>
+                  <option value="ZAR">ZAR</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+              <div class="col-sm-3">
+                <label class="form-label">Payment Method</label>
+                <select class="form-select" id="paymentMethod" required>
+                  <option value="M-Pesa">M‑Pesa</option>
+                  <option value="EcoCash">EcoCash</option>
+                  <option value="Card">Card</option>
+                  <option value="Bank">Bank</option>
+                </select>
+              </div>
+              <div class="col-sm-3">
+                <button type="submit" class="btn btn-primary w-100">Send Test Payment</button>
+              </div>
+            </form>
+            <div id="paymentResult" class="mt-3" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transactions Section -->
+      <div class="row mt-4" data-aos="fade-up" data-aos-delay="300">
+        <div class="col-12">
+          <div class="feature-card" style="text-align:left;">
+            <h4>Recent Test Transactions</h4>
+            <table class="table table-dark table-striped" id="transactionsTable">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Currency</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Transaction ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Transactions will be injected here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container text-center">
+      &copy; 2025 MonoPay. Built with ❤ for developers.
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+  <script>AOS.init();</script>
+  <script>
+    // Ensure user is logged in
+    const loggedInEmail = localStorage.getItem('monopay_logged_in');
+    if (!loggedInEmail) {
+      window.location.href = 'login.html';
+    }
+
+    // Utility to copy to clipboard
+    function copyToClipboard(inputId) {
+      const input = document.getElementById(inputId);
+      input.select();
+      input.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+    }
+
+    // Generate random string for keys
+    function randomKey(length) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    }
+
+    // Load or create API keys
+    function loadApiKeys() {
+      const keyStorage = JSON.parse(localStorage.getItem('monopay_keys') || '{}');
+      if (!keyStorage[loggedInEmail]) {
+        keyStorage[loggedInEmail] = {
+          clientId: 'cli_' + randomKey(12),
+          secretKey: 'sec_' + randomKey(24)
+        };
+        localStorage.setItem('monopay_keys', JSON.stringify(keyStorage));
+      }
+      document.getElementById('clientId').value = keyStorage[loggedInEmail].clientId;
+      document.getElementById('secretKey').value = keyStorage[loggedInEmail].secretKey;
+    }
+
+    function regenerateKeys() {
+      const keyStorage = JSON.parse(localStorage.getItem('monopay_keys') || '{}');
+      keyStorage[loggedInEmail] = {
+        clientId: 'cli_' + randomKey(12),
+        secretKey: 'sec_' + randomKey(24)
+      };
+      localStorage.setItem('monopay_keys', JSON.stringify(keyStorage));
+      loadApiKeys();
+    }
+
+    // Load user details into form
+    function loadAccount() {
+      const users = JSON.parse(localStorage.getItem('monopay_users') || '[]');
+      const current = users.find(u => u.email === loggedInEmail);
+      if (!current) {
+        return;
+      }
+      document.getElementById('accountFirstName').value = current.firstName;
+      document.getElementById('accountLastName').value = current.lastName;
+      document.getElementById('accountEmail').value = current.email;
+      document.getElementById('accountPhone').value = current.phone;
+      document.getElementById('dashboardGreeting').textContent = `Welcome, ${current.firstName}!`;
+    }
+
+    // Update user details
+    document.getElementById('accountForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const users = JSON.parse(localStorage.getItem('monopay_users') || '[]');
+      const idx = users.findIndex(u => u.email === loggedInEmail);
+      if (idx >= 0) {
+        users[idx].firstName = document.getElementById('accountFirstName').value.trim();
+        users[idx].lastName = document.getElementById('accountLastName').value.trim();
+        users[idx].phone = document.getElementById('accountPhone').value.trim();
+        localStorage.setItem('monopay_users', JSON.stringify(users));
+        document.getElementById('dashboardGreeting').textContent = `Welcome, ${users[idx].firstName}!`;
+        const msg = document.getElementById('accountMessage');
+        msg.style.display = 'block';
+        msg.style.color = '#76d9b0';
+        msg.textContent = 'Details updated successfully.';
+        setTimeout(() => msg.style.display = 'none', 2000);
+      }
+    });
+
+    // Handle test payment submissions
+    document.getElementById('paymentForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const amount = parseFloat(document.getElementById('paymentAmount').value);
+      const currency = document.getElementById('paymentCurrency').value;
+      const method = document.getElementById('paymentMethod').value;
+      // Create dummy transaction id and status
+      const transactionId = 'txn_' + randomKey(10);
+      const status = 'SUCCESS';
+      const timestamp = new Date().toLocaleString();
+      // Save transaction for this user
+      const txKey = `monopay_transactions_${loggedInEmail}`;
+      const txns = JSON.parse(localStorage.getItem(txKey) || '[]');
+      txns.unshift({ timestamp, amount, currency, method, status, transactionId });
+      localStorage.setItem(txKey, JSON.stringify(txns));
+      // Display JSON response
+      const resultElem = document.getElementById('paymentResult');
+      resultElem.style.display = 'block';
+      resultElem.style.backgroundColor = '#0b2545';
+      resultElem.style.padding = '15px';
+      resultElem.style.borderRadius = '4px';
+      resultElem.style.color = '#8ab4f8';
+      resultElem.textContent = JSON.stringify({ id: transactionId, status, amount, currency, method }, null, 2);
+      // Reset form
+      document.getElementById('paymentForm').reset();
+      // Reload table
+      loadTransactions();
+    });
+
+    // Load transactions into table
+    function loadTransactions() {
+      const txKey = `monopay_transactions_${loggedInEmail}`;
+      const txns = JSON.parse(localStorage.getItem(txKey) || '[]');
+      const tbody = document.querySelector('#transactionsTable tbody');
+      tbody.innerHTML = '';
+      txns.forEach(tx => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${tx.timestamp}</td><td>${tx.amount}</td><td>${tx.currency}</td><td>${tx.method}</td><td>${tx.status}</td><td>${tx.transactionId}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Logout link: reuse navLogout element click event
+    document.getElementById('navLogout').addEventListener('click', function (e) {
+      e.preventDefault();
+      localStorage.removeItem('monopay_logged_in');
+      window.location.href = 'login.html';
+    });
+
+    // Initial load
+    loadApiKeys();
+    loadAccount();
+    loadTransactions();
+  </script>
+</body>
+</html>
