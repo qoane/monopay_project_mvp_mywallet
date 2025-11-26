@@ -45,7 +45,7 @@
       <!-- API Keys Section -->
       <div class="row" data-aos="fade-up">
         <div class="col-md-6">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <h4>API Keys</h4>
             <p>Your API keys are used to authenticate your application. Keep them secret!</p>
             <div class="mb-2">
@@ -68,7 +68,7 @@
 
         <!-- Account Details -->
         <div class="col-md-6" data-aos="fade-up" data-aos-delay="100">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <h4>Account Details</h4>
             <form id="accountForm">
               <div class="mb-2">
@@ -89,7 +89,7 @@
               </div>
               <button type="submit" class="btn btn-primary">Update Details</button>
             </form>
-            <div id="accountMessage" class="mt-2" style="display:none;"></div>
+            <div id="accountMessage" class="mt-2 feedback-message"></div>
           </div>
         </div>
       </div>
@@ -97,7 +97,7 @@
       <!-- Test Payment Section -->
       <div class="row mt-4" data-aos="fade-up" data-aos-delay="200">
         <div class="col-12">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <h4>Test a Payment</h4>
             <p>Use the form below to simulate a payment in the sandbox. This will not affect real accounts.</p>
             <form id="paymentForm" class="row gy-2 gx-3 align-items-end">
@@ -126,7 +126,7 @@
                 <button type="submit" class="btn btn-primary w-100">Send Test Payment</button>
               </div>
             </form>
-            <div id="paymentResult" class="mt-3" style="display:none;"></div>
+            <div id="paymentResult" class="mt-3 response-container"></div>
           </div>
         </div>
       </div>
@@ -134,7 +134,7 @@
       <!-- Transactions Section -->
       <div class="row mt-4" data-aos="fade-up" data-aos-delay="300">
         <div class="col-12">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <h4>Recent Test Transactions</h4>
             <table class="table table-dark table-striped" id="transactionsTable">
               <thead>
@@ -167,6 +167,7 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
   <script>AOS.init();</script>
   <script>
     // Ensure user is logged in
@@ -243,10 +244,10 @@
         localStorage.setItem('monopay_users', JSON.stringify(users));
         document.getElementById('dashboardGreeting').textContent = `Welcome, ${users[idx].firstName}!`;
         const msg = document.getElementById('accountMessage');
-        msg.style.display = 'block';
-        msg.style.color = '#76d9b0';
         msg.textContent = 'Details updated successfully.';
-        setTimeout(() => msg.style.display = 'none', 2000);
+        msg.classList.remove('error');
+        msg.classList.add('visible', 'success');
+        setTimeout(() => msg.classList.remove('visible'), 2000);
       }
     });
 
@@ -267,12 +268,9 @@
       localStorage.setItem(txKey, JSON.stringify(txns));
       // Display JSON response
       const resultElem = document.getElementById('paymentResult');
-      resultElem.style.display = 'block';
-      resultElem.style.backgroundColor = '#0b2545';
-      resultElem.style.padding = '15px';
-      resultElem.style.borderRadius = '4px';
-      resultElem.style.color = '#8ab4f8';
-      resultElem.textContent = JSON.stringify({ id: transactionId, status, amount, currency, method }, null, 2);
+      resultElem.classList.add('visible');
+      resultElem.innerHTML = `<div class="code-block"><pre><code class="language-json">${JSON.stringify({ id: transactionId, status, amount, currency, method }, null, 2)}</code></pre></div>`;
+      hljs.highlightAll();
       // Reset form
       document.getElementById('paymentForm').reset();
       // Reload table

@@ -56,7 +56,7 @@
           </div>
           <button type="submit" class="btn-submit">Register</button>
         </form>
-        <div id="registerMessage" class="mt-3" style="display:none;"></div>
+        <div id="registerMessage" class="mt-3 feedback-message"></div>
       </div>
     </div>
   </section>
@@ -84,25 +84,22 @@
       const terms = document.getElementById('terms').checked;
       const msgElem = document.getElementById('registerMessage');
       // basic validation
+      msgElem.classList.remove('visible', 'success', 'error');
       if (!firstName || !lastName || !email || !phone || !password || !confirmPassword) {
-        msgElem.style.display = 'block';
-        msgElem.style.color = '#ff6666';
         msgElem.textContent = 'Please complete all fields.';
+        msgElem.classList.add('visible', 'error');
         return;
       }
       if (password !== confirmPassword) {
-        msgElem.style.display = 'block';
-        msgElem.style.color = '#ff6666';
         msgElem.textContent = 'Passwords do not match.';
+        msgElem.classList.add('visible', 'error');
         return;
       }
       if (!terms) {
-        msgElem.style.display = 'block';
-        msgElem.style.color = '#ff6666';
         msgElem.textContent = 'You must accept the terms & conditions.';
+        msgElem.classList.add('visible', 'error');
         return;
       }
-      msgElem.style.display = 'none';
       try {
         const response = await fetch('/v1/users/register', {
           method: 'POST',
@@ -113,14 +110,12 @@
         if (!response.ok) {
           throw new Error(data.message || 'Registration failed');
         }
-        msgElem.style.display = 'block';
-        msgElem.style.color = '#76d9b0';
         msgElem.textContent = 'Registration successful! Please check your email to verify your account.';
+        msgElem.classList.add('visible', 'success');
         document.getElementById('registerForm').reset();
       } catch (err) {
-        msgElem.style.display = 'block';
-        msgElem.style.color = '#ff6666';
         msgElem.textContent = err.message;
+        msgElem.classList.add('visible', 'error');
       }
     });
   </script>

@@ -52,7 +52,7 @@
     <div class="container" data-aos="fade-up" data-aos-delay="200">
       <div class="row justify-content-center mb-4">
         <div class="col-md-6">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <label for="endpointSelect" class="form-label">Choose Endpoint</label>
             <select id="endpointSelect" class="form-select">
               <option value="create">POST /v1/payments</option>
@@ -63,9 +63,9 @@
         </div>
       </div>
       <!-- Forms for each endpoint -->
-      <div id="createForm" class="row justify-content-center" style="display:none;">
+      <div id="createForm" class="row justify-content-center hidden-section">
         <div class="col-md-8">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <h4>Create Payment</h4>
             <form id="createPaymentForm" novalidate>
               <div class="row g-3">
@@ -113,40 +113,40 @@
               </div>
               <button type="submit" class="btn btn-primary mt-3">Send Request</button>
             </form>
-            <div id="createResponse" class="mt-3" style="display:none;"></div>
+            <div id="createResponse" class="mt-3 response-container"></div>
           </div>
         </div>
       </div>
       <!-- Retrieve payment form -->
-      <div id="retrieveForm" class="row justify-content-center" style="display:none;">
+      <div id="retrieveForm" class="row justify-content-center hidden-section">
         <div class="col-md-6">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <h4>Retrieve Payment</h4>
             <form id="retrievePaymentForm" novalidate>
               <label class="form-label">Payment ID</label>
               <input type="text" class="form-control" id="retrieveId" placeholder="e.g., pay_ABC123" required />
               <button type="submit" class="btn btn-primary mt-3">Send Request</button>
             </form>
-            <div id="retrieveResponse" class="mt-3" style="display:none;"></div>
+            <div id="retrieveResponse" class="mt-3 response-container"></div>
           </div>
         </div>
       </div>
       <!-- List wallets form -->
-      <div id="walletsForm" class="row justify-content-center" style="display:none;">
+      <div id="walletsForm" class="row justify-content-center hidden-section">
         <div class="col-md-6">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <h4>List Supported Wallets</h4>
             <p>Click the button below to list the wallets and banks available on MonoPay.</p>
             <button id="walletsButton" class="btn btn-primary">Send Request</button>
-            <div id="walletsResponse" class="mt-3" style="display:none;"></div>
+            <div id="walletsResponse" class="mt-3 response-container"></div>
           </div>
         </div>
       </div>
     </div>
       <!-- Balance form -->
-      <div id="balanceForm" class="row justify-content-center" style="display:none;">
+      <div id="balanceForm" class="row justify-content-center hidden-section">
         <div class="col-md-6">
-          <div class="feature-card" style="text-align:left;">
+          <div class="feature-card text-start">
             <h4>Query Wallet Balance</h4>
             <form id="walletBalanceForm" novalidate>
               <div class="mb-2">
@@ -164,7 +164,7 @@
               </div>
               <button type="submit" class="btn btn-primary">Send Request</button>
             </form>
-            <div id="balanceResponse" class="mt-3" style="display:none;"></div>
+            <div id="balanceResponse" class="mt-3 response-container"></div>
           </div>
         </div>
       </div>
@@ -174,7 +174,7 @@
         <div class="col-md-12">
           <h4 class="text-center mb-3">Full‑screen Code Sandbox</h4>
           <p class="text-center">Write raw JSON payloads and simulate responses. Select an endpoint, edit the request, and click Send.</p>
-          <div class="feature-card" style="height: 500px; display: flex; flex-direction: column;">
+          <div class="feature-card editor-card">
             <div class="row mb-2">
               <div class="col-md-4">
                 <select id="editorEndpoint" class="form-select">
@@ -190,10 +190,10 @@
             </div>
             <div class="row flex-grow-1">
               <div class="col-md-6">
-                <div id="editor" style="width: 100%; height: 100%; border-radius: 8px; overflow: hidden;"></div>
+                <div id="editor" class="editor-surface"></div>
               </div>
               <div class="col-md-6">
-                <div id="editorResponse" style="width: 100%; height: 100%; background-color: #0d1333; color: #fff; padding: 10px; border-radius: 8px; overflow: auto; white-space: pre-wrap;"></div>
+                <div id="editorResponse" class="editor-response"></div>
               </div>
             </div>
           </div>
@@ -225,11 +225,15 @@
     const retrieveForm = document.getElementById('retrieveForm');
     const walletsForm = document.getElementById('walletsForm');
     const balanceForm = document.getElementById('balanceForm');
+    function toggleSection(section, shouldShow) {
+      section.classList.toggle('hidden-section', !shouldShow);
+    }
+
     function updateForms() {
-      createForm.style.display = endpointSelect.value === 'create' ? 'flex' : 'none';
-      retrieveForm.style.display = endpointSelect.value === 'retrieve' ? 'flex' : 'none';
-      walletsForm.style.display = endpointSelect.value === 'wallets' ? 'flex' : 'none';
-      balanceForm.style.display = endpointSelect.value === 'balance' ? 'flex' : 'none';
+      toggleSection(createForm, endpointSelect.value === 'create');
+      toggleSection(retrieveForm, endpointSelect.value === 'retrieve');
+      toggleSection(walletsForm, endpointSelect.value === 'wallets');
+      toggleSection(balanceForm, endpointSelect.value === 'balance');
     }
     endpointSelect.addEventListener('change', updateForms);
     // Initialize default
@@ -238,7 +242,7 @@
     // Utility function to display JSON pretty
     function displayResponse(containerId, data) {
       const container = document.getElementById(containerId);
-      container.style.display = 'block';
+      container.classList.add('visible');
       container.innerHTML = `<div class="code-block"><pre><code class="language-json">${JSON.stringify(data, null, 2)}</code></pre></div>`;
       hljs.highlightAll();
     }
