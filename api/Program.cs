@@ -138,19 +138,19 @@ builder.Services.AddAuthorization();
 
 // Register payment providers and aggregator. In a production system these
 // registrations would be more dynamic and configurable via appsettings.json.
-builder.Services.AddSingleton<MonoPayAggregator.Services.MpesaProvider>();
-builder.Services.AddSingleton<MonoPayAggregator.Services.EcoCashProvider>();
-builder.Services.AddSingleton<MonoPayAggregator.Services.EftProvider>();
-builder.Services.AddSingleton<MonoPayAggregator.Services.CardProvider>();
-builder.Services.AddSingleton<MonoPayAggregator.Services.MyWalletProvider>();
-builder.Services.AddSingleton<MonoPayAggregator.Services.CpayProvider>();
-builder.Services.AddSingleton<MonoPayAggregator.Services.KhetsiProvider>();
+builder.Services.AddScoped<MonoPayAggregator.Services.MpesaProvider>();
+builder.Services.AddScoped<MonoPayAggregator.Services.EcoCashProvider>();
+builder.Services.AddScoped<MonoPayAggregator.Services.EftProvider>();
+builder.Services.AddScoped<MonoPayAggregator.Services.CardProvider>();
+builder.Services.AddScoped<MonoPayAggregator.Services.MyWalletProvider>();
+builder.Services.AddScoped<MonoPayAggregator.Services.CpayProvider>();
+builder.Services.AddScoped<MonoPayAggregator.Services.KhetsiProvider>();
 
 // Register the payment aggregator. We build the provider dictionary from
 // configuration keys so that supported methods can be toggled in
 // appsettings.json. Unknown methods remain unsupported until you add
 // additional provider classes.
-builder.Services.AddSingleton<MonoPayAggregator.Services.PaymentAggregator>(sp =>
+builder.Services.AddScoped<MonoPayAggregator.Services.PaymentAggregator>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var providerSection = config.GetSection("PaymentProviders");
@@ -184,7 +184,9 @@ builder.Services.AddSingleton<MonoPayAggregator.Services.PaymentAggregator>(sp =
             // Additional providers go here
         }
     }
-    return new MonoPayAggregator.Services.PaymentAggregator(providersDict);
+    return new MonoPayAggregator.Services.PaymentAggregator(
+        providersDict,
+        sp.GetRequiredService<MonoPayAggregator.Data.MonoPayDbContext>());
 });
 
 var app = builder.Build();

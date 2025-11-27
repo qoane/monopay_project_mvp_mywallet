@@ -17,6 +17,8 @@ namespace MonoPayAggregator.Data
         public DbSet<User> Users => Set<User>();
         public DbSet<PaymentTransaction> Payments => Set<PaymentTransaction>();
         public DbSet<EmailVerification> EmailVerifications => Set<EmailVerification>();
+        public DbSet<PaymentResponseRecord> PaymentResponses => Set<PaymentResponseRecord>();
+        public DbSet<MyWalletCacheEntryRecord> MyWalletCacheEntries => Set<MyWalletCacheEntryRecord>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -24,6 +26,9 @@ namespace MonoPayAggregator.Data
             // Configure simple indexes and keys
             modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
             modelBuilder.Entity<EmailVerification>().HasIndex(v => v.Token).IsUnique();
+
+            modelBuilder.Entity<PaymentResponseRecord>().HasKey(p => p.Id);
+            modelBuilder.Entity<MyWalletCacheEntryRecord>().HasKey(c => c.PaymentId);
         }
     }
 }

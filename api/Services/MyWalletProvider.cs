@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -8,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using MonoPayAggregator.Models;
+using MonoPayAggregator.Data;
 using Microsoft.Extensions.Logging;
 
 namespace MonoPayAggregator.Services
@@ -17,27 +17,26 @@ namespace MonoPayAggregator.Services
     /// environment this provider would authenticate using the merchant
     /// credentials, obtain a session token and invoke the remote endpoints
     /// (login, payMerchant, checkStatus, etc.). In this MVP we store
-    /// payments in memory and mark them successful after a delay.
+    /// payments and cache entries in the database so they survive restarts
+    /// and can be reconciled on subsequent status checks.
     /// </summary>
     public class MyWalletProvider : IPaymentProvider
     {
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<MyWalletProvider> _logger;
-        private readonly ConcurrentDictionary<string, MyWalletCacheEntry> _cache = new();
+        private readonly MonoPayDbContext _dbContext;
 
-        private class MyWalletCacheEntry
-        {
-            public PaymentResponse Payment { get; set; } = new();
-            public string? SessionToken { get; set; }
-            public string Reference { get; set; } = string.Empty;
-        }
-
-        public MyWalletProvider(IConfiguration config, IHttpClientFactory httpClientFactory, ILogger<MyWalletProvider> logger)
+        public MyWalletProvider(
+            IConfiguration config,
+            IHttpClientFactory httpClientFactory,
+            ILogger<MyWalletProvider> logger,
+            MonoPayDbContext dbContext)
         {
             _config = config;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
+            _dbContext = dbContext;
         }
 
         /// <summary>
@@ -68,22 +67,14 @@ namespace MonoPayAggregator.Services
             {
                 payment.Status = "failed";
                 payment.Errors.Add("OTP is required for MyWallet payments.");
-                _cache[localId] = new MyWalletCacheEntry
-                {
-                    Payment = payment,
-                    Reference = reference
-                };
+                await SaveCacheEntryAsync(localId, reference, null);
                 return payment;
             }
             if (!otp.All(char.IsDigit) || otp.Length < 4 || otp.Length > 8)
             {
                 payment.Status = "failed";
                 payment.Errors.Add("The OTP provided is invalid for MyWallet payMerchant.");
-                _cache[localId] = new MyWalletCacheEntry
-                {
-                    Payment = payment,
-                    Reference = reference
-                };
+                await SaveCacheEntryAsync(localId, reference, null);
                 return payment;
             }
             // Attempt to call the real API. If any step fails we return a
@@ -125,13 +116,7 @@ namespace MonoPayAggregator.Services
                     payment.Errors.Add("MyWallet payMerchant returned a non-success status.");
                 }
 
-                // Cache the response for retrieval
-                _cache[localId] = new MyWalletCacheEntry
-                {
-                    Payment = payment,
-                    SessionToken = sessionToken,
-                    Reference = payment.ProviderReference
-                };
+                await SaveCacheEntryAsync(localId, payment.ProviderReference, sessionToken);
                 return payment;
             }
             catch (Exception ex)
@@ -139,11 +124,7 @@ namespace MonoPayAggregator.Services
                 _logger.LogError(ex, "MyWallet payment creation failed for reference {Reference}", reference);
                 payment.Status = "failed";
                 payment.Errors.Add(GetInnermostMessage(ex));
-                _cache[localId] = new MyWalletCacheEntry
-                {
-                    Payment = payment,
-                    Reference = reference
-                };
+                await SaveCacheEntryAsync(localId, reference, null);
                 return payment;
             }
         }
@@ -155,11 +136,14 @@ namespace MonoPayAggregator.Services
         /// </summary>
         public async Task<PaymentResponse?> GetPaymentAsync(string id)
         {
-            if (!_cache.TryGetValue(id, out var entry))
+            var record = await _dbContext.PaymentResponses.FindAsync(id);
+            var cacheEntry = await _dbContext.MyWalletCacheEntries.FindAsync(id);
+
+            if (record == null || cacheEntry == null)
             {
                 return null;
             }
-            var payment = entry.Payment;
+            var payment = record.ToResponse();
             // If we have a provider reference and the status is pending, try
             // to refresh status from the remote API
             if (!string.IsNullOrWhiteSpace(payment.ProviderReference) && payment.Status == "pending")
@@ -170,7 +154,7 @@ namespace MonoPayAggregator.Services
                     var username = _config["PaymentProviders:MyWallet:Username"] ?? string.Empty;
                     var password = _config["PaymentProviders:MyWallet:Password"] ?? string.Empty;
                     var client = _httpClientFactory.CreateClient();
-                    var sessionToken = entry.SessionToken ?? await LoginAsync(client, baseUrl, username, password);
+                    var sessionToken = cacheEntry.SessionToken ?? await LoginAsync(client, baseUrl, username, password);
                     var statusPayload = new { reference = payment.ProviderReference };
                     var statusResponse = await PostWithBearerAsync(client, baseUrl, sessionToken, "checkStatus", statusPayload);
                     statusResponse.EnsureSuccessStatusCode();
@@ -188,6 +172,10 @@ namespace MonoPayAggregator.Services
                             payment.CompletedAt = DateTime.UtcNow;
                         }
                     }
+                    cacheEntry.SessionToken = sessionToken;
+                    cacheEntry.LastStatusCheck = DateTime.UtcNow;
+                    await SaveCacheEntryAsync(id, payment.ProviderReference, cacheEntry.SessionToken, cacheEntry.LastStatusCheck);
+                    await SavePaymentRecordAsync(payment);
                 }
                 catch
                 {
@@ -280,6 +268,49 @@ namespace MonoPayAggregator.Services
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
             var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             return await client.PostAsync($"{baseUrl.TrimEnd('/')}/{path}", content);
+        }
+
+        private async Task SaveCacheEntryAsync(string paymentId, string providerReference, string? sessionToken, DateTime? lastCheck = null)
+        {
+            var entry = await _dbContext.MyWalletCacheEntries.FindAsync(paymentId);
+            if (entry == null)
+            {
+                entry = new MyWalletCacheEntryRecord
+                {
+                    PaymentId = paymentId,
+                    ProviderReference = providerReference,
+                    SessionToken = sessionToken,
+                    LastStatusCheck = lastCheck,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _dbContext.MyWalletCacheEntries.Add(entry);
+            }
+            else
+            {
+                entry.ProviderReference = providerReference;
+                entry.SessionToken = sessionToken;
+                entry.LastStatusCheck = lastCheck ?? entry.LastStatusCheck;
+            }
+
+            await _dbContext.SaveChangesAsync();
+        }
+
+        private async Task SavePaymentRecordAsync(PaymentResponse payment)
+        {
+            var record = await _dbContext.PaymentResponses.FindAsync(payment.Id);
+            if (record == null)
+            {
+                _dbContext.PaymentResponses.Add(PaymentResponseRecord.FromResponse(payment));
+            }
+            else
+            {
+                record.Status = payment.Status;
+                record.CompletedAt = payment.CompletedAt;
+                record.ProviderReference = payment.ProviderReference;
+                record.ErrorsJson = System.Text.Json.JsonSerializer.Serialize(payment.Errors ?? new List<string>());
+            }
+
+            await _dbContext.SaveChangesAsync();
         }
 
         private string BuildGatewayErrorMessage(string operation, HttpResponseMessage response, string content)
