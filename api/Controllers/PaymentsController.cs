@@ -80,11 +80,12 @@ namespace MonoPayAggregator.Controllers
         /// by the authenticated user's merchant ID and page the results.
         /// </summary>
         [HttpGet("payments")]
-        public ActionResult<IEnumerable<PaymentResponse>> GetAllPayments()
+        public async Task<ActionResult<IEnumerable<PaymentResponse>>> GetAllPayments()
         {
             // Use the aggregator's API to obtain a snapshot of all payments.
             // In a real implementation this data would come from persistent storage.
-            return Ok(_aggregator.GetAllPayments());
+            var payments = await _aggregator.GetAllPayments();
+            return Ok(payments);
         }
 
         /// <summary>

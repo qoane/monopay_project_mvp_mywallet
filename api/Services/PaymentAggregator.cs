@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using MonoPayAggregator.Data;
 using MonoPayAggregator.Models;
 
 namespace MonoPayAggregator.Services
@@ -14,18 +16,17 @@ namespace MonoPayAggregator.Services
     public class PaymentAggregator
     {
         private readonly IDictionary<string, IPaymentProvider> _providers;
+        private readonly MonoPayDbContext _dbContext;
 
-        // Keep an in‑memory record of all payments created through the aggregator.
-        private readonly List<PaymentResponse> _allPayments = new();
-
-        public PaymentAggregator(IDictionary<string, IPaymentProvider> providers)
+        public PaymentAggregator(IDictionary<string, IPaymentProvider> providers, MonoPayDbContext dbContext)
         {
             _providers = providers;
+            _dbContext = dbContext;
         }
 
         /// <summary>
         /// Create a new payment by delegating to the underlying provider.
-        /// Records the payment in an internal list for reporting purposes.
+        /// Records the payment in persistent storage for reporting purposes.
         /// </summary>
         public async Task<PaymentResponse> CreatePaymentAsync(PaymentRequest request)
         {
@@ -35,10 +36,7 @@ namespace MonoPayAggregator.Services
                 throw new KeyNotFoundException($"Unsupported payment method '{request.PaymentMethod}'");
             }
             var response = await provider.CreatePaymentAsync(request);
-            lock (_allPayments)
-            {
-                _allPayments.Add(response);
-            }
+            await SaveOrUpdatePaymentAsync(response);
             return response;
         }
 
@@ -48,11 +46,24 @@ namespace MonoPayAggregator.Services
         /// </summary>
         public async Task<PaymentResponse?> GetPaymentAsync(string id)
         {
+            var storedRecord = await _dbContext.PaymentResponses.FindAsync(id);
+            if (storedRecord != null && _providers.TryGetValue(storedRecord.PaymentMethod.ToLowerInvariant(), out var provider))
+            {
+                var providerResult = await provider.GetPaymentAsync(id);
+                if (providerResult != null)
+                {
+                    await SaveOrUpdatePaymentAsync(providerResult);
+                    return providerResult;
+                }
+                return storedRecord.ToResponse();
+            }
+
             foreach (var provider in _providers.Values)
             {
                 var result = await provider.GetPaymentAsync(id);
                 if (result != null)
                 {
+                    await SaveOrUpdatePaymentAsync(result);
                     return result;
                 }
             }
@@ -79,16 +90,16 @@ namespace MonoPayAggregator.Services
 
         /// <summary>
         /// Return a snapshot of all payments created through the aggregator.
-        /// A copy is returned to avoid consumers enumerating over the internal
-        /// list while it is being modified, which could lead to race conditions
-        /// or collection‑modified exceptions.
+        /// Data is returned from persistent storage so history survives
+        /// process restarts.
         /// </summary>
-        public IEnumerable<PaymentResponse> GetAllPayments()
+        public async Task<IEnumerable<PaymentResponse>> GetAllPayments()
         {
-            lock (_allPayments)
-            {
-                return _allPayments.ToArray();
-            }
+            var records = await _dbContext.PaymentResponses
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+
+            return records.Select(r => r.ToResponse());
         }
 
         /// <summary>
@@ -102,6 +113,31 @@ namespace MonoPayAggregator.Services
                 return Task.FromResult<decimal?>(null);
             }
             return provider.GetBalanceAsync(accountId);
+        }
+
+        private async Task SaveOrUpdatePaymentAsync(PaymentResponse response)
+        {
+            var record = await _dbContext.PaymentResponses.FindAsync(response.Id);
+            if (record == null)
+            {
+                record = PaymentResponseRecord.FromResponse(response);
+                _dbContext.PaymentResponses.Add(record);
+            }
+            else
+            {
+                record.Status = response.Status;
+                record.Amount = response.Amount;
+                record.Currency = response.Currency;
+                record.PaymentMethod = response.PaymentMethod;
+                record.CreatedAt = response.CreatedAt;
+                record.CompletedAt = response.CompletedAt;
+                record.ErrorsJson = System.Text.Json.JsonSerializer.Serialize(response.Errors ?? new List<string>());
+                record.MerchantId = response.MerchantId;
+                record.CustomerPhone = response.CustomerPhone;
+                record.ProviderReference = response.ProviderReference;
+            }
+
+            await _dbContext.SaveChangesAsync();
         }
     }
 }
