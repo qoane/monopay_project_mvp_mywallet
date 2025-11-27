@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using MonoPayAggregator.Models;
 using System;
+using System.Linq;
 
 namespace MonoPayAggregator.Controllers
 {
@@ -27,6 +28,20 @@ namespace MonoPayAggregator.Controllers
         [HttpPost("payments")]
         public async Task<ActionResult<PaymentResponse>> CreatePayment([FromBody] PaymentRequest request)
         {
+            if (string.Equals(request.PaymentMethod, "mywallet", StringComparison.OrdinalIgnoreCase))
+            {
+                var otp = request.Otp?.Trim();
+                if (string.IsNullOrWhiteSpace(otp))
+                {
+                    return BadRequest(new { message = "An OTP is required for MyWallet payments." });
+                }
+                if (!otp.All(char.IsDigit) || otp.Length < 4 || otp.Length > 8)
+                {
+                    return BadRequest(new { message = "The OTP provided is invalid. Please supply a numeric code." });
+                }
+                request.Otp = otp;
+            }
+
             try
             {
                 var response = await _aggregator.CreatePaymentAsync(request);

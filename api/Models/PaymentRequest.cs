@@ -18,6 +18,12 @@ namespace MonoPayAggregator.Models
         public string MerchantId { get; set; } = string.Empty;
         public string? Reference { get; set; }
         public string? CallbackUrl { get; set; }
+        /// <summary>
+        /// One-time password supplied by the payer to authorize operations
+        /// such as MyWallet payMerchant. When required by a provider this
+        /// value must be supplied and validated.
+        /// </summary>
+        public string? Otp { get; set; }
     }
 
     public class CustomerInfo
