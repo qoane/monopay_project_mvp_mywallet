@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MonoPayAggregator.Models;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace MonoPayAggregator.Controllers
@@ -25,13 +24,6 @@ namespace MonoPayAggregator.Controllers
             _configuration = configuration;
         }
 
-        private static string HashPassword(string password)
-        {
-            using var sha = SHA256.Create();
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
-            return Convert.ToBase64String(bytes);
-        }
-
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] UserRegisterRequest request)
         {
@@ -49,7 +41,7 @@ namespace MonoPayAggregator.Controllers
                     LastName = request.LastName,
                     Email = request.Email,
                     Phone = request.Phone,
-                    PasswordHash = HashPassword(request.Password),
+                    PasswordHash = PasswordHelper.HashPassword(request.Password),
                     IsVerified = false,
                     MerchantId = merchantId
                 };
@@ -76,7 +68,7 @@ namespace MonoPayAggregator.Controllers
                 {
                     return NotFound(new { message = "User not found." });
                 }
-                var hash = HashPassword(request.Password);
+                var hash = PasswordHelper.HashPassword(request.Password);
                 if (hash != user.PasswordHash)
                 {
                     return Unauthorized(new { message = "Invalid credentials." });
