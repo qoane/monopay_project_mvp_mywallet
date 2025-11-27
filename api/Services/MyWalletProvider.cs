@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -62,6 +63,29 @@ namespace MonoPayAggregator.Services
                 CreatedAt = DateTime.UtcNow,
                 ProviderReference = reference
             };
+            var otp = request.Otp?.Trim();
+            if (string.IsNullOrWhiteSpace(otp))
+            {
+                payment.Status = "failed";
+                payment.Errors.Add("OTP is required for MyWallet payments.");
+                _cache[localId] = new MyWalletCacheEntry
+                {
+                    Payment = payment,
+                    Reference = reference
+                };
+                return payment;
+            }
+            if (!otp.All(char.IsDigit) || otp.Length < 4 || otp.Length > 8)
+            {
+                payment.Status = "failed";
+                payment.Errors.Add("The OTP provided is invalid for MyWallet payMerchant.");
+                _cache[localId] = new MyWalletCacheEntry
+                {
+                    Payment = payment,
+                    Reference = reference
+                };
+                return payment;
+            }
             // Attempt to call the real API. If any step fails we return a
             // failed payment with details for the caller.
             try
@@ -69,7 +93,6 @@ namespace MonoPayAggregator.Services
                 var baseUrl = _config["PaymentProviders:MyWallet:BaseUrl"] ?? string.Empty;
                 var username = _config["PaymentProviders:MyWallet:Username"] ?? string.Empty;
                 var password = _config["PaymentProviders:MyWallet:Password"] ?? string.Empty;
-                var otp = _config["PaymentProviders:MyWallet:Otp"] ?? "99999";
                 if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
                 {
                     throw new InvalidOperationException("MyWallet configuration missing.");
