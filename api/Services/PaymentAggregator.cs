@@ -58,9 +58,9 @@ namespace MonoPayAggregator.Services
                 return storedRecord.ToResponse();
             }
 
-            foreach (var provider in _providers.Values)
+            foreach (var candidateProvider in _providers.Values)
             {
-                var result = await provider.GetPaymentAsync(id);
+                var result = await candidateProvider.GetPaymentAsync(id);
                 if (result != null)
                 {
                     await SaveOrUpdatePaymentAsync(result);

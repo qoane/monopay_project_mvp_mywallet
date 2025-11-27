@@ -11,6 +11,7 @@ using System.IO;
 using Microsoft.AspNetCore.Diagnostics;
 using System.Text.Json;
 using System.Linq;
+using MonoPayAggregator.Data;
 
 static string NormalizePathBase(string? pathBase)
 {
@@ -190,6 +191,13 @@ builder.Services.AddScoped<MonoPayAggregator.Services.PaymentAggregator>(sp =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<MonoPayDbContext>();
+    dbContext.Database.EnsureCreated();
+    SeedData.EnsureSeeded(dbContext);
+}
 
 if (!string.IsNullOrEmpty(pathBase))
 {
