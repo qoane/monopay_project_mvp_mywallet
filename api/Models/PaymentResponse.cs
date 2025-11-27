@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace MonoPayAggregator.Models
 {
     /// <summary>
@@ -13,6 +16,7 @@ namespace MonoPayAggregator.Models
         public string PaymentMethod { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? CompletedAt { get; set; }
+        public List<string> Errors { get; set; } = new();
 
         /// <summary>
         /// Merchant receiving the funds. Included for convenience when
