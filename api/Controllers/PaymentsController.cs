@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using MonoPayAggregator.Models;
 using System;
 
@@ -29,6 +30,10 @@ namespace MonoPayAggregator.Controllers
             try
             {
                 var response = await _aggregator.CreatePaymentAsync(request);
+                if (!string.Equals(response.Status, "success", StringComparison.OrdinalIgnoreCase))
+                {
+                    return StatusCode(StatusCodes.Status502BadGateway, response);
+                }
                 return Created($"/v1/payments/{response.Id}", response);
             }
             catch (KeyNotFoundException ex)
